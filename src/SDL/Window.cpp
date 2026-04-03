@@ -1,6 +1,7 @@
 #include "Window.hpp"
 #include "Widgets.hpp"
 #include <SDL3/SDL_ttf.h>
+#include <iostream>
 using Iterables::LinkedList;
 
 namespace SimplerDirectMediaLayer
@@ -73,7 +74,7 @@ namespace SimplerDirectMediaLayer
 		if (font == nullptr) {
 			SDL_DestroyRenderer(renderer);
 			SDL_DestroyWindow(window);
-			printf(SDL_GetError());
+			printf("%s\n", SDL_GetError());
 			window = nullptr;
 			renderer = nullptr;
 			throw FontNotLoadedException();
@@ -106,11 +107,16 @@ namespace SimplerDirectMediaLayer
 		icon = SDL_LoadBMP(path.data());
 		SDL_SetWindowIcon(window, icon);
 	}
-	void Window::setSize(unsigned int w, unsigned int h) {
+	void Window::setSize(unsigned int w, unsigned int h, bool reset) {
+		if (reset) {
+			SCREEN_BASE_WIDTH = w;
+			SCREEN_BASE_HEIGHT = h;
+		}
+
 		SCREEN_WIDTH = w;
 		SCREEN_HEIGHT = h;
 
-		SDL_SetWindowSize(window, 800, 600);
+		SDL_SetWindowSize(window, w, h);
 		SDL_SyncWindow(window);
 	}
 	void Window::setName(std::string name) {
@@ -203,28 +209,11 @@ namespace SimplerDirectMediaLayer
 	void Window::drawWidgets() {
 		if (!created) return;
 		if (widgets.size() == 0) return;
+		std::array<int, 2> pos = { 0, 0 };
 		for (auto& b : widgets) {
 			if (b->visible) {
-				int x = 0, y = 0;
-				switch (b->anchor) {
-				case ANCHOR::NORTH_WEST:
-					x = b->x;
-					y = b->y;
-					break;
-				case ANCHOR::NORTH_EAST:
-					x = b->x - (SCREEN_BASE_WIDTH - SCREEN_WIDTH);
-					y = b->y;
-					break;
-				case ANCHOR::SOUTH_WEST:
-					x = b->x;
-					y = b->y - (SCREEN_BASE_HEIGHT - SCREEN_HEIGHT);
-					break;
-				case ANCHOR::SOUTH_EAST:
-					x = b->x - (SCREEN_BASE_WIDTH - SCREEN_WIDTH);
-					y = b->y - (SCREEN_BASE_HEIGHT - SCREEN_HEIGHT);
-					break;
-				}
-				b->draw(this, &*b, x, y);
+				pos = getWidgetAbsolutPosition(*b);
+				b->draw(this, b, pos[0], pos[1]);
 			}
 		}
 	}
@@ -240,6 +229,22 @@ namespace SimplerDirectMediaLayer
 		if (!created) return;
 		setColor(color);
 		SDL_RenderClear(renderer);
+	}
+	std::array<int, 2> Window::getWidgetAbsolutPosition(BaseWidget& b) {
+		int x = b.x, y = b.y;
+		switch (b.anchor) {
+			case ANCHOR::NORTH_EAST:
+				x += (b.parent->SCREEN_WIDTH - b.parent->SCREEN_BASE_WIDTH);
+				break;
+			case ANCHOR::SOUTH_WEST:
+				y -= (b.parent->SCREEN_BASE_HEIGHT - b.parent->SCREEN_HEIGHT);
+				break;
+			case ANCHOR::SOUTH_EAST:
+				x -= (b.parent->SCREEN_BASE_WIDTH - b.parent->SCREEN_WIDTH);
+				y -= (b.parent->SCREEN_BASE_HEIGHT - b.parent->SCREEN_HEIGHT);
+				break;
+		}
+		return { x, y };
 	}
 	void Window::clip(int& x, int& y)
 	{
@@ -257,30 +262,34 @@ namespace SimplerDirectMediaLayer
 				focused = nullptr;
 				float mousex, mousey;
 				SDL_GetMouseState(&mousex, &mousey);
+				std::array<int, 2> pos = { 0, 0 };
+
 				for (int i = 0; i < widgets.size(); i++) {
-					if (widgets[i]->Type & WIDGET_TYPE_CLICKABLE) {
-						if (mousex >= widgets[i]->x &&
-							mousey >= widgets[i]->y &&
-							mousex <= widgets[i]->x + widgets[i]->sizex &&
-							mousey <= widgets[i]->y + widgets[i]->sizey) {
-							((Button*)widgets[i])->OnClick(((Button*)widgets[i])->ptr);
+					std::cout << "Checking widget " << i << " at " << widgets[i]->x << ", " << widgets[i]->y << " with size " << widgets[i]->sizex << ", " << widgets[i]->sizey << " Type: ";
+					if (widgets[i]->Type & WIDGET_TYPE::CLICKABLE) std::cout << "CLICKABLE ";
+					if (widgets[i]->Type & WIDGET_TYPE::KBTYPABLE) std::cout << "KBTYPABLE ";
+					if (widgets[i]->Type & WIDGET_TYPE::FOCUSABLE) std::cout << "FOCUSABLE ";
+					if (widgets[i]->Type & WIDGET_TYPE::DRAGGABLE) std::cout << "DRAGGABLE ";
+					std::cout << "\n";
+
+					pos = getWidgetAbsolutPosition(*widgets[i]);
+		
+					if (widgets[i]->Type & WIDGET_TYPE::CLICKABLE) {
+						if (mousex >= pos[0] &&
+							mousey >= pos[1] &&
+							mousex <= pos[0] + widgets[i]->sizex &&
+							mousey <= pos[1] + widgets[i]->sizey &&
+							widgets[i]->onClick != nullptr) {
+							widgets[i]->onClick(widgets[i]->onClickPtr);
 							break;
 						}
 					}
-					else if (widgets[i]->Type & WIDGET_TYPE_FOCUSABLE) {
-						if (mousex >= widgets[i]->x &&
-							mousey >= widgets[i]->y &&
-							mousex <= widgets[i]->x + widgets[i]->sizex &&
-							mousey <= widgets[i]->y + widgets[i]->sizey) {
-							focused = widgets[i];
-							break;
-						}
-					}
-					else if (widgets[i]->Type & WIDGET_TYPE_DRAGGABLE) {
-						if (mousex >= widgets[i]->x &&
-							mousey >= widgets[i]->y &&
-							mousex <= widgets[i]->x + widgets[i]->sizex &&
-							mousey <= widgets[i]->y + widgets[i]->sizey) {
+					if (widgets[i]->Type & WIDGET_TYPE::FOCUSABLE) {
+						if (mousex >= pos[0] &&
+							mousey >= pos[1] &&
+							mousex <= pos[0] + widgets[i]->sizex &&
+							mousey <= pos[1] + widgets[i]->sizey) {
+							std::cout << "Focus set to widget " << i << "\n";
 							focused = widgets[i];
 							break;
 						}
@@ -295,21 +304,23 @@ namespace SimplerDirectMediaLayer
 		else if (e.type == MOUSEMOTION) {
 			if (focused != nullptr) {
 				if (isMouseDown) {
-					if (focused->Type & WIDGET_TYPE_DRAGGABLE) {
-						((Scale*)focused)->Drag(focused, e.motion.x, e.motion.y);
-						((Scale*)focused)->OnDrag(focused, e.motion.x, e.motion.y);
+					if (focused->Type & WIDGET_TYPE::DRAGGABLE &&
+						focused->drag != nullptr) {
+						focused->drag(focused, e.motion.x, e.motion.y);
+						if (focused->onDrag != nullptr)
+							focused->onDrag(focused, e.motion.x, e.motion.y);
 					}
 				}
 			}
 		}
 		else if (e.type == KEYDOWN) {
 			if (focused != nullptr) {
-				if (focused->Type & WIDGET_TYPE_KBTYPABLE) {
+				if (focused->Type & WIDGET_TYPE::KBTYPABLE) {
 					if (e.key.scancode == 42) {
-						if (((Entry*)focused)->value.size() > 0)
-							((Entry*)focused)->value.pop_back();
+						if (focused->keyboardValue.size() > 0)
+							focused->keyboardValue.pop_back();
 					}
-					else ((Entry*)focused)->value += SDL_GetKeyName(e.key.key);
+					else focused->keyboardValue += SDL_GetKeyName(e.key.key);
 				}
 			}
 		}

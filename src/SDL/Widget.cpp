@@ -71,44 +71,46 @@ namespace SimplerDirectMediaLayer {
 		sizex = _sizex;
 		sizey = _sizey;
 		color = _color;
-		OnClick = _OnClick;
-		ptr = _ptr;
-		Type = WIDGET_TYPE_CLICKABLE;
+		onClick = _OnClick;
+		onClickPtr = _ptr;
+		Type = WIDGET_TYPE::CLICKABLE;
 		draw = drawButton;
 	}
 
 	void drawEntry(void* w, void* _this, int x, int y) {
 		((Window*)w)->drawRect(x - 2, y - 2, ((Entry*)_this)->sizex + 2, ((Entry*)_this)->sizey + 2, 0xAAAAAA);
 		((Window*)w)->drawRect(x, y, ((Entry*)_this)->sizex, ((Entry*)_this)->sizey, 0xffffff);
-		if (((Entry*)_this)->value == "") {
+		if (((Entry*)_this)->keyboardValue == "") {
 			((Window*)w)->drawString(((Entry*)_this)->placeHolder, x, y, 0x555555);
 		}
 		else {
 
-			((Window*)w)->drawString(((Entry*)_this)->value, x, y, 0);
+			((Window*)w)->drawString(((Entry*)_this)->keyboardValue, x, y, 0);
 		}
 	}
 
 	Entry::Entry(std::string _placeHolder, int _x, int _y, int _sizex, int _sizey) {
 		placeHolder = _placeHolder;
-		value = "";
+		keyboardValue = "";
 		x = _x;
 		y = _y;
 		sizex = _sizex;
 		sizey = _sizey;
 		draw = drawEntry;
-		Type = WIDGET_TYPE_FOCUSABLE | WIDGET_TYPE_KBTYPABLE;
+		Type = WIDGET_TYPE::FOCUSABLE | WIDGET_TYPE::KBTYPABLE;
 	}
 
 	void drawCheckBox(void* w, void* _this, int x, int y) {
 		constexpr int PADDING = 2;
+		constexpr int SHADOW_SIZE = 1;
+		constexpr int X_OFFSET = 15;
 
-		((Window*)w)->drawRect(x - 2, y - 2, ((CheckBox*)_this)->sizex + 2, ((CheckBox*)_this)->sizey + 2, 0xAAAAAA);
+		((Window*)w)->drawRect(x - PADDING, y - PADDING, ((CheckBox*)_this)->sizex + PADDING, ((CheckBox*)_this)->sizey + PADDING, 0xAAAAAA);
 		((Window*)w)->drawRect(x, y, ((CheckBox*)_this)->sizex, ((CheckBox*)_this)->sizey, 0xffffff);
 		if (((CheckBox*)_this)->checked) {
-			((Window*)w)->drawChar('X', x + 1, y + 1, 0);
+			((Window*)w)->drawChar('X', x + SHADOW_SIZE, y + SHADOW_SIZE, 0);
 		}
-		((Window*)w)->drawString(((CheckBox*)_this)->text, x + 15, y, 0);
+		((Window*)w)->drawString(((CheckBox*)_this)->text, x + X_OFFSET, y, 0);
 	}
 
 	void CheckBoxOnClick(void* _this) {
@@ -122,9 +124,9 @@ namespace SimplerDirectMediaLayer {
 		sizex = 10;
 		sizey = 10;
 		color = 0;
-		OnClick = (FUNCTION_CALL*)CheckBoxOnClick;
-		ptr = this;
-		Type = WIDGET_TYPE_CLICKABLE;
+		onClick = (FUNCTION_CALL*)CheckBoxOnClick;
+		onClickPtr = this;
+		Type = WIDGET_TYPE::CLICKABLE;
 		draw = drawCheckBox;
 	}
 
@@ -163,6 +165,14 @@ namespace SimplerDirectMediaLayer {
 		}
 	}
 
+	int clickScale(void* _this) {
+		float mousex, mousey;
+		SDL_GetMouseState(&mousex, &mousey);
+		((Scale*)_this)->drag(_this, mousex, mousey);
+
+		return 0;
+	}
+
 	Scale::Scale(int _x, int _y, int _sizex, int _sizey, int _max, bool _horizontal, DRAG_CALL* _onDrag) {
 		draw = (DRAW_CALL*)DrawScale;
 		x = _x;
@@ -170,11 +180,13 @@ namespace SimplerDirectMediaLayer {
 		sizex = _sizex;
 		sizey = _sizey;
 		horizontal = _horizontal;
-		Drag = (DRAG_CALL*)DragScale;
-		OnDrag = OnDrag;
-		if (OnDrag == nullptr) OnDrag = (DRAG_CALL*)defaultOnDrag;
+		drag = (DRAG_CALL*)DragScale;
+		onClick = clickScale;
+		onClickPtr = this;
+		onDrag = _onDrag;
+		if (_onDrag == nullptr) onDrag = (DRAG_CALL*)defaultOnDrag;
 		max = _max;
-		Type = WIDGET_TYPE_DRAGGABLE;
+		Type = WIDGET_TYPE::DRAGGABLE | WIDGET_TYPE::FOCUSABLE | WIDGET_TYPE::CLICKABLE;
 	}
 
 	Panel::Panel(int x, int y, int sizeX, int sizeY, int flags) {
