@@ -3,6 +3,7 @@
 #include <SDL3/SDL_ttf.h>
 #include <string>
 #include <vector>
+#include <array>
 #include "LinkedList.hpp"
 
 namespace SimplerDirectMediaLayer {
@@ -83,13 +84,14 @@ namespace SimplerDirectMediaLayer {
 		inline bool	const		getCreated() { return created; }
 		inline bool	const		getResizable() { return resizable; }
 		inline uint32_t const	getPixel(uint16_t x, uint16_t y);
-		inline SDL_Window** getSDLWindow() { return &window; }
-		inline SDL_Renderer* getSDLRenderer() { return renderer; };
-		inline SDL_Event& getEvent() { return e; }
+		inline SDL_Window**		getSDLWindow() { return &window; }
+		inline SDL_Renderer*	getSDLRenderer() { return renderer; };
+		inline SDL_Event&		getEvent() { return e; }
+		std::array<int, 2>		getWidgetAbsolutPosition(BaseWidget& b);
 
 		void setResizable();
 		void setIcon(std::string path);
-		void setSize(unsigned int w, unsigned int h);
+		void setSize(unsigned int w, unsigned int h, bool reset = false);
 		void setName(std::string name);
 		void setMousePos(int x, int y);
 		void setFullScreen();
